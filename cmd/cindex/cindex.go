@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
@@ -49,7 +50,7 @@ Options:
   -maxinvalidutf8ratio RATIO
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
   -exclude FILE
-  			   path to file containing a list of file patterns to exclude from indexing
+               path to file containing a list of file patterns to exclude from indexing
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -129,9 +130,9 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
-							log.Printf("%s: skipped. VCS or backup directory", symlinkFrom+path[len(arg):])
+							log.Printf("%s: skipped. Excluded directory", symlinkFrom+path[len(arg):])
 						} else {
-							log.Printf("%s: skipped. VCS or backup directory", path)
+							log.Printf("%s: skipped. Excluded directory", path)
 						}
 					}
 					return filepath.SkipDir
@@ -140,9 +141,9 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
-							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
+							log.Printf("%s: skipped. Excluded file", symlinkFrom+path[len(arg):])
 						} else {
-							log.Printf("%s: skipped. Backup or undesirable file", path)
+							log.Printf("%s: skipped. Excluded file", path)
 						}
 					}
 					return nil
@@ -264,7 +265,20 @@ func main() {
 	}
 
 	if *exclude != "" {
-		data, err := ioutil.ReadFile(*exclude)
+		var excludePath string
+		if (*exclude)[:2] == "~/" {
+			usr, err := user.Current()
+			if err != nil {
+				log.Fatal(err)
+			}
+			excludePath = filepath.Join(usr.HomeDir, (*exclude)[2:])
+		} else {
+			excludePath = *exclude
+		}
+		if *logSkipFlag {
+			log.Printf("Loading exclude patterns from %s", excludePath)
+		}
+		data, err := ioutil.ReadFile(excludePath)
 		if err != nil {
 			log.Fatal(err)
 		}
